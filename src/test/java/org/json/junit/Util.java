@@ -117,4 +117,37 @@ public class Util {
             );
         }
     }
+
+    /**
+     * Runs the given task on a dedicated thread with a large (8 MB) stack and
+     * returns whatever it threw. The tests may be run with a small stack (for
+     * example -Xss512k), on which descending to the default maximum nesting
+     * depth of a recursive parser can overflow the stack before the depth
+     * guard is reached; running the task on a large stack makes the outcome
+     * deterministic.
+     * @param task the work to run
+     * @return the Throwable thrown by the task, or <code>null</code> if the
+     *     task completed normally
+     */
+    public static Throwable throwableFromLargeStack(final Runnable task) {
+        final Throwable[] thrown = new Throwable[1];
+        Thread thread = new Thread(null, new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    task.run();
+                } catch (Throwable t) {
+                    thrown[0] = t;
+                }
+            }
+        }, "large-stack", 8L * 1024 * 1024);
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while waiting for the large-stack thread: " + e);
+        }
+        return thrown[0];
+    }
 }
